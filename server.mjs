@@ -3,6 +3,9 @@ import http from 'http';
 import { Server } from 'socket.io';
 import { randomUUID } from 'crypto';
 import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
@@ -14,11 +17,11 @@ const io = new Server(server, {
 });
 
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: 'https://chroma-war.vercel.app',
   methods: ['GET', 'POST']
 }));
 
-// In-memory game rooms
+
 const rooms = {};
 
 const createGrid = () => {
@@ -195,7 +198,7 @@ const applyMove = (grid, row, col, color, turn = 999) => {
 };
 
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
 server.listen(PORT, () => {
   console.log(`Game server listening on port ${PORT}`);
 });
