@@ -12,15 +12,14 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST']
+    methods: ['GET', 'POST'],
   }
 });
 
 app.use(cors({
-  origin: 'https://chroma-war.vercel.app',
-  methods: ['GET', 'POST']
+  origin: '*',
+  methods: ['GET', 'POST'],
 }));
-
 
 const rooms = {};
 
@@ -63,6 +62,7 @@ io.on('connection', (socket) => {
       return;
     }
     room.isProcessing = false; // Mark the room as no longer processing
+    console.log(`Processing done for room: ${roomId}`);
     io.to(roomId).emit('animation-complete', { roomId });
   });
 
@@ -84,14 +84,21 @@ io.on('connection', (socket) => {
       console.error(`Room not found: ${roomId}`);
       return;
     }
-    if (room.isProcessing) return;
+    if (room.isProcessing) {
+      console.warn(`Room ${roomId} is currently processing a move. Please wait.`);
+      return;
+    }
 
     const playerColor = room.players.indexOf(socket.id) === 0 ? 'blue-400' : 'red-400';
     const currentTurn = room.turn % 2 === 0 ? 'blue-400' : 'red-400';
-    if (currentTurn !== playerColor) return;
+    if (currentTurn !== playerColor) {
+      console.warn(`It's not your turn. Current turn: ${currentTurn}, Your color: ${playerColor}`);
+      return;
+    }
 
     const cell = room.grid[row][col];
     if ((cell.color !== playerColor && !(cell.color === 'white' && cell.val === 0)) || cell.val >= 4) {
+      console.warn(`Invalid move at (${row}, ${col}). Cell color: ${cell.color}, Value: ${cell.val}`);
       return;
     }
     room.isProcessing = true;
@@ -200,5 +207,5 @@ const applyMove = (grid, row, col, color, turn = 999) => {
 
 const PORT = process.env.PORT;
 server.listen(PORT, () => {
-  console.log(`Game server listening on port ${PORT}`);
+  console.log(`Game server started on port ${PORT}`);
 });
