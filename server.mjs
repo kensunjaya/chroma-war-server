@@ -11,13 +11,13 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: process.env.ORIGIN || '*',
     methods: ['GET', 'POST'],
   }
 });
 
 app.use(cors({
-  origin: '*',
+  origin: process.env.ORIGIN || '*',
   methods: ['GET', 'POST'],
 }));
 
@@ -25,7 +25,7 @@ const rooms = {};
 
 const createGrid = () => {
   return Array.from({ length: 6 }, () =>
-    Array.from({ length: 6 }, () => ({ val: 0, color: 'white' }))
+    Array.from({ length: 6 }, () => ({ val: 0, color: 'N' }))
   );
 };
 
@@ -37,7 +37,10 @@ io.on('connection', (socket) => {
     if (Object.values(rooms).some(room => room.players.includes(socket.id))) {
       return callback({ error: 'You already have a room' });
     }
-    const roomId = randomUUID();
+    let roomId = randomUUID().slice(0, 5).toUpperCase();
+    while (rooms[roomId]) {
+      roomId = randomUUID().slice(0, 5).toUpperCase();
+    }
     rooms[roomId] = {
       grid: createGrid(),
       players: [socket.id],
@@ -48,6 +51,8 @@ io.on('connection', (socket) => {
     socket.join(roomId);
     console.log(`Room created: ${roomId} by ${socket.id}`);
     io.to(roomId).emit('room-created', roomId);
+    socket.emit('rooms-list', Object.keys(rooms));
+    console.log(Object.keys(rooms));
     callback(roomId);
   });
 
@@ -89,15 +94,15 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const playerColor = room.players.indexOf(socket.id) === 0 ? 'blue-400' : 'red-400';
-    const currentTurn = room.turn % 2 === 0 ? 'blue-400' : 'red-400';
+    const playerColor = room.players.indexOf(socket.id) === 0 ? 'B' : 'R';
+    const currentTurn = room.turn % 2 === 0 ? 'B' : 'R';
     if (currentTurn !== playerColor) {
-      console.warn(`It's not your turn. Current turn: ${currentTurn}, Your color: ${playerColor}`);
+      console.warn(`Invalid Turn. Current turn: ${currentTurn}`);
       return;
     }
 
     const cell = room.grid[row][col];
-    if ((cell.color !== playerColor && !(cell.color === 'white' && cell.val === 0)) || cell.val >= 4) {
+    if ((cell.color !== playerColor && !(cell.color === 'N' && cell.val === 0)) || cell.val >= 4) {
       console.warn(`Invalid move at (${row}, ${col}). Cell color: ${cell.color}, Value: ${cell.val}`);
       return;
     }
@@ -144,12 +149,12 @@ const checkWin = (grid) => {
   let blueCount = 0;
   for (const row of grid) {
     for (const cell of row) {
-      if (cell.color === 'red-400') redCount += cell.val;
-      if (cell.color === 'blue-400') blueCount += cell.val;
+      if (cell.color === 'R') redCount += cell.val;
+      if (cell.color === 'B') blueCount += cell.val;
     }
   }
-  if (redCount === 0) return 'blue-400';
-  if (blueCount === 0) return 'red-400';
+  if (redCount === 0) return 'B';
+  if (blueCount === 0) return 'R';
   return null;
 };
 
@@ -176,7 +181,7 @@ const applyMove = (grid, row, col, color, turn = 999) => {
       trace[wave].push({ row, col });
 
       grid[row][col].val = 0;
-      grid[row][col].color = 'white';
+      grid[row][col].color = 'N';
 
       const neighbors = [
         [row - 1, col],
@@ -204,8 +209,6 @@ const applyMove = (grid, row, col, color, turn = 999) => {
   return trace;
 };
 
-
-const PORT = process.env.PORT;
-server.listen(PORT, () => {
-  console.log(`Game server started on port ${PORT}`);
+server.listen(process.env.PORT, () => {
+  console.log(`Game server started on port ${process.env.PORT}`);
 });
