@@ -30,10 +30,11 @@ const createGrid = () => {
 };
 
 io.on('connection', (socket) => {
-  console.log(`Socket connected: ${socket.id}`);
+  const connectionTime = new Date().toLocaleString();
+  console.log(`Socket connected: ${socket.id} at ${connectionTime}`);
   socket.emit('rooms-list', Object.keys(rooms));
 
-  socket.on('create-room', (_, callback) => {
+  socket.on('create-room', (playerName, callback) => {
     if (Object.values(rooms).some(room => room.players.includes(socket.id))) {
       return callback({ error: 'You already have a room' });
     }
@@ -43,13 +44,15 @@ io.on('connection', (socket) => {
     }
     rooms[roomId] = {
       grid: createGrid(),
-      players: [socket.id],
+      players: [{socketId: socket.id, playerName: playerName, color: 'B'}],
+      host: playerName,
       nRestartRequest: 0,
       turn: 0,
       isProcessing: false // Flag to indicate if the room is processing a move
     };
     socket.join(roomId);
-    console.log(`Room created: ${roomId} by ${socket.id}`);
+    const creationTime = new Date().toLocaleString();
+    console.log(`Room created: ${roomId} by ${playerName} (${socket.id}) at ${creationTime}`);
     io.to(roomId).emit('room-created', roomId);
     socket.emit('rooms-list', Object.keys(rooms));
     console.log(Object.keys(rooms));
@@ -57,7 +60,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('get-rooms', () => {
-    socket.emit('rooms-list', Object.keys(rooms));
+    const roomList = Object.entries(rooms).map(([roomId, room]) => ({
+      roomId,
+      host: room.host,
+      players: room.players,
+    }));
+    socket.emit('rooms-list', roomList);
   });
 
   socket.on('done-processing', (roomId) => {
@@ -67,16 +75,15 @@ io.on('connection', (socket) => {
       return;
     }
     room.isProcessing = false; // Mark the room as no longer processing
-    console.log(`Processing done for room: ${roomId}`);
     io.to(roomId).emit('animation-complete', { roomId });
   });
 
-  socket.on('join-room', (roomId, callback) => {
+  socket.on('join-room', (roomId, playerName, callback) => {
     const room = rooms[roomId];
     if (!room) return callback({ error: 'Room not found' });
     if (room.players.length >= 2) return callback({ error: 'Room full' });
 
-    room.players.push(socket.id);
+    room.players.push({socketId: socket.id, playerName: playerName, color: 'R'});
     socket.join(roomId);
     callback({ success: true, grid: room.grid });
 
@@ -94,7 +101,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const playerColor = room.players.indexOf(socket.id) === 0 ? 'B' : 'R';
+    const playerColor = room.players.find(p => p.socketId === socket.id)?.color;
     const currentTurn = room.turn % 2 === 0 ? 'B' : 'R';
     if (currentTurn !== playerColor) {
       console.warn(`Invalid Turn. Current turn: ${currentTurn}`);
@@ -137,7 +144,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}`);
     for (const [roomId, room] of Object.entries(rooms)) {
-      room.players = room.players.filter(p => p !== socket.id);
+      room.players = room.players.filter(p => p.socketId !== socket.id);
       io.to(roomId).emit('player-left', room.players);
       if (room.players.length === 0) delete rooms[roomId];
     }
