@@ -144,8 +144,9 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}`);
     for (const [roomId, room] of Object.entries(rooms)) {
+      if (!room.players.some(p => p.socketId === socket.id)) continue;
       room.players = room.players.filter(p => p.socketId !== socket.id);
-      io.to(roomId).emit('player-left', room.players);
+      io.to(roomId).emit('player-left', room);
       if (room.players.length === 0) delete rooms[roomId];
     }
   });
